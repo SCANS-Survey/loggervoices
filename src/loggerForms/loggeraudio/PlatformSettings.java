@@ -17,6 +17,11 @@ public class PlatformSettings implements Serializable {
 	 * output stream mixer channel
 	 */
 	public int outputChannel = 0;
+	
+	/**
+	 * Gain in decibels
+	 */
+	public int gainDB = 0;
 
 	public PlatformSettings(String senderName) {
 		this.platform = senderName;

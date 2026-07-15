@@ -3,7 +3,9 @@ package loggerForms.loggeraudio;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 import javax.sound.sampled.Mixer;
 import javax.sound.sampled.Mixer.Info;
@@ -14,7 +16,7 @@ public class LoggerAudioSettings implements Cloneable, Serializable {
 
 	public static final long serialVersionUID = 1L;
 	
-	private HashMap<String, PlatformSettings> platformAudioSettings = new HashMap();
+	private Map<String, PlatformSettings> platformAudioSettings = new TreeMap<String, PlatformSettings>();
 	
 	private int outputDeviceIndex = 0;
 	public String outputDeviceName = null;

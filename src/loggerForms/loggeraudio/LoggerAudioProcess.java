@@ -228,6 +228,7 @@ public class LoggerAudioProcess extends PamProcess {
 			isNew = true;
 			platformAudios.put(sender, pfa);
 			loggerAudioControl.checkActionsMap(sender);
+			loggerAudioControl.platformUpdate(pfa);
 		}
 		if (isNew) {
 
@@ -251,11 +252,11 @@ public class LoggerAudioProcess extends PamProcess {
 		pfa.addAudioData(rdu);
 		pfa.totalSamples += audio[0].length;
 		// what's in those first five bytes ? [0 8 -2 0 5]
-		//		if (now - lastOut > 1000) {
-		//			System.out.printf("%d(%d) bytes %d-%d received from %s - tot samples %d max level is %5.4f\n", 
-		//					audioBytes.length, message.getData().length, audioBytes[0], audioBytes[1], sender, pfa.totalSamples, max);
-		//			lastOut = now;
-		//		}
+//		if (now - lastOut > 1000) {
+//			System.out.printf("%d(%d) bytes %d-%d received from %s - tot samples %d max level is %5.4f\n", 
+//					audioBytes.length, message.getData().length, audioBytes[0], audioBytes[1], sender, pfa.totalSamples, max);
+//			lastOut = now;
+//		}
 
 
 	}
@@ -304,12 +305,25 @@ public class LoggerAudioProcess extends PamProcess {
 		LoggerRawAudioDataBlock rawOutDataBlock = pfa.getRawOutDataBlock();
 		rawOutDataBlock.setNaturalLifetime(loggerAudioControl.getLoggerAudioSettings().bufferSeconds);
 		long now = System.currentTimeMillis();
+		PlatformSettings platSettings = loggerAudioControl.getLoggerAudioSettings().getStreamSettings(pfa.getPlatform());
 		
 		while ((rdu = pfa.getUnit()) != null) {
+			// amplify the data if necessary
+			int gain = platSettings.gainDB;
+			double[] data = rdu.getRawData();
+			if (gain != 0) {
+				double g = Math.pow(10., (double) gain / 20.);
+				for (int i = 0; i < data.length; i++) {
+					data[i] *= g;
+				}
+			}
+			double max = 0;
+			for (int i = 0; i < data.length; i++) {
+				max = Math.max(max, Math.abs(data[i]));
+			}
 			
 			pfa.storeDataUnit(rdu);
-
-			PlatformSettings platSettings = loggerAudioControl.getLoggerAudioSettings().getStreamSettings(pfa.getPlatform());
+			pfa.setLevel(max);
 
 			double[] interleaved = interleaveAudio(rdu.getRawData(), platSettings.outputChannel);
 			double[][] out = {interleaved};
@@ -337,6 +351,7 @@ public class LoggerAudioProcess extends PamProcess {
 			synchronized(rawOutDataBlock.getSynchLock()) {
 				rawOutDataBlock.clearold(System.currentTimeMillis() - loggerAudioControl.getLoggerAudioSettings().bufferSeconds*1000);
 			}
+			loggerAudioControl.platformUpdate(pfa);
 		}
 	}
 

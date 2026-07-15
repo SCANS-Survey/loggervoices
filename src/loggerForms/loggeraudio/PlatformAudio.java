@@ -46,6 +46,8 @@ public class PlatformAudio {
 	private Object writeLock = new Object();
 
 	private long recordingStart;
+
+	private double level;
 	
 
 	/**
@@ -333,5 +335,26 @@ public class PlatformAudio {
 		return false;
 	}
 	
+	/**
+	 * @return the fileEndTime
+	 */
+	public long getFileEndTime() {
+		return fileEndTime;
+	}
+	/**
+	 * Is currently recording. 
+	 * @return
+	 */
+	public boolean isRecording() {
+		return wavFileWriter != null;
+	}
+	
+	public void setLevel(double max) {
+		this.level = max;
+	}
+	
+	public double getLevel() {
+		return level;
+	}
 
 }

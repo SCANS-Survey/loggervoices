@@ -4,6 +4,7 @@ import java.awt.Frame;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Set;
 
@@ -14,12 +15,16 @@ import PamController.PamControlledUnitSettings;
 import PamController.PamController;
 import PamController.PamSettingManager;
 import PamController.PamSettings;
+import PamView.PamSidePanel;
 import loggerForms.actions.ActionOwner;
 import loggerForms.actions.LoggerActions;
+import loggerForms.loggeraudio.swing.AudioDisplayProvider;
+import loggerForms.loggeraudio.swing.AudioSidePanel;
 import loggerForms.loggeraudio.swing.LoggerAudioDialog;
 import loggerForms.network.LoggerNetworkObserver;
+import userDisplay.UserDisplayControl;
 
-public class LoggerAudioControl extends PamControlledUnit implements LoggerNetworkObserver, PamSettings, ActionOwner {
+public class LoggerAudioControl extends PamControlledUnit implements LoggerNetworkObserver, PamSettings, ActionOwner, LoggerAudioObserver {
 	
 	public static final String unitTupe = "Logger Audio";
 	
@@ -28,6 +33,10 @@ public class LoggerAudioControl extends PamControlledUnit implements LoggerNetwo
 	private LoggerAudioSettings loggerAudioSettings = new LoggerAudioSettings();
 	
 	private HashMap<String, LoggerAudioAction> localActionsMap = new HashMap<>();
+	
+	private ArrayList<LoggerAudioObserver> observers  = new ArrayList();
+
+	private AudioSidePanel sidePanel;;
 
 	public LoggerAudioControl(String unitName) {
 		super(unitTupe, unitName);
@@ -37,6 +46,7 @@ public class LoggerAudioControl extends PamControlledUnit implements LoggerNetwo
 		PamSettingManager.getInstance().registerSettings(this);
 		
 		checkActionsMap();
+		UserDisplayControl.addUserDisplayProvider(new AudioDisplayProvider(this));
 	}
 
 	/**
@@ -120,6 +130,34 @@ public class LoggerAudioControl extends PamControlledUnit implements LoggerNetwo
 		return loggerAudioProcess;
 	}
 	
+	public void addAudioObserver(LoggerAudioObserver loggerAudioObserver) {
+		synchronized (observers) {
+			observers.add(loggerAudioObserver);
+		}
+	}
+
+	@Override
+	public void newPlatform(PlatformAudio platformAudio) {
+		for (LoggerAudioObserver obs : observers) {
+			obs.newPlatform(platformAudio);
+		}
+		
+	}
+
+	@Override
+	public PamSidePanel getSidePanel() {
+		if (sidePanel == null) {
+			sidePanel = new AudioSidePanel(this);
+		}
+		return sidePanel;
+	}
+
+	@Override
+	public void platformUpdate(PlatformAudio platformAudio) {
+		for (LoggerAudioObserver obs : observers) {
+			obs.platformUpdate(platformAudio);
+		}
+	}
 
 
 }
