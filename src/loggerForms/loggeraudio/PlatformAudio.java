@@ -20,7 +20,7 @@ import loggerForms.loggeraudio.logging.LoggerAudioDataUnit;
 import wavFiles.WavFileWriter;
 
 /**
- * Store for audio data coming from one of the platform apps. This contains two queues, the
+ * Store and manage audio data coming from one of the platform apps. This contains two queues, the
  * first is a simple list that receives data when they first arrive over the network. This frees
  * the network. This first queue is then emptied on a time, which puts the data into a more
  * persistent RawDataBlock OR writes to a wav file, as part of a buffered recording system. 
@@ -114,6 +114,13 @@ public class PlatformAudio {
 		if (now < fileEndTime) {
 			return;
 		}
+		stopRecording();
+	}
+	
+	/**
+	 * Stop recording, write record to database, and send out notification. 
+	 */
+	protected void stopRecording() {
 		LoggerAudioDataUnit ladu = null;
 		synchronized (writeLock) {
 			if (wavFileWriter == null) {
@@ -126,6 +133,7 @@ public class PlatformAudio {
 			
 			wavFileWriter = null;
 			fileEndTimer.stop();
+			loggerAudioProcess.getLoggerAudioControl().notifyRecording(this, false, 0);
 		}
 		if (ladu != null) {
 			loggerAudioProcess.getAudioDataBlock().addPamData(ladu);
@@ -155,6 +163,7 @@ public class PlatformAudio {
 		trimQueue();
 	}
 	
+	long lastStatusSend = 0;
 	/**
 	 * Called again when data have been read from the initial queue and 
 	 * will be written to a datablock, or direct to a file. 
@@ -162,11 +171,17 @@ public class PlatformAudio {
 	 */
 	public void storeDataUnit(RawDataUnit rdu) {
 		checkFileEndTime(rdu.getTimeMilliseconds());
+		long now = System.currentTimeMillis();
 		synchronized (writeLock) {
 			if (wavFileWriter != null) {
 				// add the data to the writer. 
 				double[][] wData = {rdu.getRawData()};
 				wavFileWriter.append(wData);
+				if (now-lastStatusSend > 500) {
+					int remaining = (int) ((fileEndTime-now)/1000);
+					loggerAudioProcess.getLoggerAudioControl().notifyRecording(this, true, remaining);
+					lastStatusSend = now;
+				}
 			}
 			else {
 				// store the data for the next write
@@ -329,6 +344,7 @@ public class PlatformAudio {
 					wavFileWriter.append(wDat);
 				}
 				fileEndTimer.start(); // this is only needed in case data collection stops. 
+				loggerAudioProcess.getLoggerAudioControl().notifyRecording(this, true, settings.recordSeconds);
 			}
 		}
 		

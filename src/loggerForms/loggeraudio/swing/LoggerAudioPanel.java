@@ -126,7 +126,7 @@ public class LoggerAudioPanel implements LoggerAudioObserver {
 			this.add(inner, BorderLayout.CENTER);
 			progressBar = new JProgressBar(panelSize == PANELSIZE.BIG ? SwingConstants.VERTICAL : SwingConstants.HORIZONTAL, -80, 00);
 			progressBar.setStringPainted(true);
-			stateButton = new StateButton(panelSize == PANELSIZE.BIG ? 24 : 16);
+			stateButton = new StateButton(platformName, panelSize == PANELSIZE.BIG ? 24 : 16);
 			fileEnd = new JTextField(3);
 			fileEnd.setEditable(false);
 			inner.add(progressBar, BorderLayout.CENTER);
@@ -135,7 +135,7 @@ public class LoggerAudioPanel implements LoggerAudioObserver {
 
 			progressBar.setToolTipText("Right click for gain adjustment control");
 			fileEnd.setToolTipText("Seconds remaining before recording ends");
-			stateButton.setToolTipText("Recording state");
+//			stateButton.setToolTipText("Recording state");
 			
 			progressBar.addMouseListener(new MouseAdapter() {
 
@@ -191,7 +191,7 @@ public class LoggerAudioPanel implements LoggerAudioObserver {
 			}
 			if (platformAudio.isRecording()) {
 				String unit = panelSize == PANELSIZE.BIG ? " seconds remaining" : "";
-				int remain = (int) ((platformAudio.getFileEndTime()-System.currentTimeMillis())/1000);
+				int remain = (int) ((platformAudio.getFileEndTime()-System.currentTimeMillis()+500)/1000);
 				fileEnd.setText(String.format("%d%s", remain, unit));
 			}
 			else {
@@ -213,16 +213,36 @@ public class LoggerAudioPanel implements LoggerAudioObserver {
 		
 		private boolean recording = false;
 
-		public StateButton(int size) {
+		private String platformName;
+
+		public StateButton(String platformName, int size) {
+			this.platformName = platformName;
 			this.size = size;
 			record = new PamSymbol(PamSymbolType.SYMBOL_CIRCLE, size, size, true, Color.RED, Color.RED);
 			stop = new PamSymbol(PamSymbolType.SYMBOL_SQUARE, size-2, size-2, true, Color.BLACK, Color.BLACK);
+			addMouseListener(new StateMouse(platformName));
+			setToolTip();
+		}
+
+		private void setToolTip() {
+			setToolTipText(makeToolTip());
 		}
 
 		public void setRecordng(boolean recording) {
 			if (this.recording != recording) {
 				this.recording = recording;
+				setToolTip();
 				repaint();
+			}
+		}
+		
+		private String makeToolTip() {
+			int recDur = loggerAudioControl.getLoggerAudioSettings().recordSeconds;
+			if (recording == false) {
+				return String.format("Click to record for %d seconds", recDur);
+			}
+			else {
+				return String.format("Click to extend recording to %d seconds", recDur);
 			}
 		}
 
@@ -245,8 +265,28 @@ public class LoggerAudioPanel implements LoggerAudioObserver {
 			s.setWidth(sz);
 			s.draw(g, new Point(x,y));
 		}
-
+		
 	}
+
+	private class StateMouse extends MouseAdapter{
+
+		private String platformName;
+
+		public StateMouse(String platformName) {
+			this.platformName = platformName;
+		}
+
+		@Override
+		public void mouseClicked(MouseEvent e) {
+			// record for predetermined time !
+			PlatformAudio pa = loggerAudioProcess.getPlatformAudio(platformName);
+			if (pa != null) {
+				pa.makeRecording();
+			}
+		}
+		
+	}
+
 
 	@Override
 	public void newPlatform(PlatformAudio platformAudio) {

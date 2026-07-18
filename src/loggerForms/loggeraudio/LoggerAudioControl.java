@@ -21,7 +21,10 @@ import loggerForms.actions.LoggerActions;
 import loggerForms.loggeraudio.swing.AudioDisplayProvider;
 import loggerForms.loggeraudio.swing.AudioSidePanel;
 import loggerForms.loggeraudio.swing.LoggerAudioDialog;
+import loggerForms.network.LoggerNetworkManager;
 import loggerForms.network.LoggerNetworkObserver;
+import loggerForms.network.LoggerNetworkSettings;
+import loggerForms.network.LoggerNetworkSystem;
 import userDisplay.UserDisplayControl;
 
 public class LoggerAudioControl extends PamControlledUnit implements LoggerNetworkObserver, PamSettings, ActionOwner, LoggerAudioObserver {
@@ -157,6 +160,22 @@ public class LoggerAudioControl extends PamControlledUnit implements LoggerNetwo
 		for (LoggerAudioObserver obs : observers) {
 			obs.platformUpdate(platformAudio);
 		}
+	}
+
+	/**
+	 * Called when a channel modifies it's recording state. 
+	 * @param platformAudio audio handler. 
+	 * @param recording currently recording true or false
+	 * @param remaining remaining seconds. 
+	 */
+	public void notifyRecording(PlatformAudio platformAudio, boolean recording, int remaining) {
+		String plat = platformAudio.getPlatform();
+		LoggerNetworkManager netMan = LoggerNetworkSystem.getManager();
+		if (netMan == null) {
+			return;
+		}
+		String data = recording ? Integer.valueOf(remaining).toString() : "-1";
+		netMan.sendData("", "LoggerRecording/"+plat, data.getBytes());
 	}
 
 
