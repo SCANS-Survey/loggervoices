@@ -178,5 +178,12 @@ public class LoggerAudioControl extends PamControlledUnit implements LoggerNetwo
 		netMan.sendData("", "LoggerRecording/"+plat, data.getBytes());
 	}
 
+	@Override
+	public boolean canClose() {
+		// check if anything is recording - end all recordings
+		loggerAudioProcess.endAllRecordings();
+		return true;
+	}
+
 
 }

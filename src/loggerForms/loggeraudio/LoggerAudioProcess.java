@@ -403,4 +403,18 @@ public class LoggerAudioProcess extends PamProcess {
 	}
 
 
+	/**
+	 * Called when PAMGuard closes, to make sure all recordings are
+	 * nicely ended and logged to database. 
+	 */
+	public void endAllRecordings() {
+		Set<String> keys = platformAudios.keySet();
+		for (String key : keys) {
+			PlatformAudio pfa = platformAudios.get(key);
+			pfa.stopRecording();
+		}
+		
+	}
+
+
 }
