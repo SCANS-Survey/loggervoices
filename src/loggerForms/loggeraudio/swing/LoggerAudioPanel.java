@@ -65,6 +65,7 @@ public class LoggerAudioPanel implements LoggerAudioObserver {
 	}
 	
 	private void createChannelPanels() {
+		channelPanelContainer.removeAll();
 		LoggerAudioSettings settings = loggerAudioControl.getLoggerAudioSettings();
 		Set<String> platforms = settings.getPlatformNames();
 		for (String platform : platforms) {

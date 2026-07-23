@@ -228,6 +228,8 @@ public class LoggerAudioProcess extends PamProcess {
 			isNew = true;
 			platformAudios.put(sender, pfa);
 			loggerAudioControl.checkActionsMap(sender);
+			loggerAudioControl.getLoggerAudioSettings().getStreamSettings(sender); // init settings so other parts know of them.
+			loggerAudioControl.newPlatform(pfa);
 			loggerAudioControl.platformUpdate(pfa);
 		}
 		if (isNew) {
@@ -414,6 +416,14 @@ public class LoggerAudioProcess extends PamProcess {
 			pfa.stopRecording();
 		}
 		
+	}
+	
+	/**
+	 * Get current platform audio names. 
+	 * @return
+	 */
+	public Set<String> getPlatformNames() {
+		return platformAudios.keySet();
 	}
 
 

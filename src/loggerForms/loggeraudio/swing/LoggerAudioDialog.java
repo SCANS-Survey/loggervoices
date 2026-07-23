@@ -4,10 +4,13 @@ import java.awt.BorderLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Window;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.util.ArrayList;
 
 import javax.sound.sampled.Mixer.Info;
 import javax.swing.BoxLayout;
+import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -18,6 +21,7 @@ import Acquisition.SoundCardSystem;
 import PamUtils.SelectFolder;
 import PamView.dialog.PamDialog;
 import PamView.dialog.PamGridBagContraints;
+import loggerForms.loggeraudio.LoggerAudioControl;
 import loggerForms.loggeraudio.LoggerAudioSettings;
 
 public class LoggerAudioDialog extends PamDialog {
@@ -33,15 +37,21 @@ public class LoggerAudioDialog extends PamDialog {
 	private JTextField bufferSeconds;
 	private JTextField recordSeconds;
 	
-	private LoggerAudioDialog(Window parentFrame) {
+	private JButton clearButton;
+	private LoggerAudioControl loggerAudioControl;
+	
+	private LoggerAudioDialog(Window parentFrame, LoggerAudioControl loggerAudioControl) {
 		super(parentFrame, "Logger app audio", false);
+		this.loggerAudioControl = loggerAudioControl;
 		cardList = new JComboBox<>();
 		cardList.setToolTipText("Sound card for audio output");
 		outputFolder = new SelectFolder("Output folder", 40, true);
+		clearButton = new JButton("Clear devices list");
 		bufferSeconds = new JTextField(3);
 		recordSeconds = new JTextField(3);
 		bufferSeconds.setToolTipText("Time to record before recording is initialised");
 		recordSeconds.setToolTipText("Time to record after recording is initialised");
+		clearButton.setToolTipText("Clear all current device names from memory");
 		
 		JPanel mainPanel = new JPanel();
 		mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
@@ -71,15 +81,30 @@ public class LoggerAudioDialog extends PamDialog {
 		dataPanel.add(recordSeconds, c);
 		c.gridx++;
 		dataPanel.add(new JLabel(" seconds ", JLabel.LEFT), c);
+		c.gridx = 0;
+		c.gridy++;
+		dataPanel.add(clearButton, c);
 		
 		fillCardList();
+		
+		clearButton.addActionListener(new ActionListener() {
+			
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				clearDevices();
+			}
+		});
 		
 		setDialogComponent(mainPanel);
 	}
 	
-	public static LoggerAudioSettings showDialog(Window parentFrame, LoggerAudioSettings audioSettings) {
+	protected void clearDevices() {
+		loggerAudioControl.clearDeviceSettings();
+	}
+
+	public static LoggerAudioSettings showDialog(Window parentFrame, LoggerAudioControl loggeraudioControl, LoggerAudioSettings audioSettings) {
 		if (singleInstance == null || singleInstance.getParent() != parentFrame) {
-			singleInstance = new LoggerAudioDialog(parentFrame);
+			singleInstance = new LoggerAudioDialog(parentFrame, loggeraudioControl);
 		}
 		singleInstance.setParams(audioSettings);
 		singleInstance.setVisible(true);

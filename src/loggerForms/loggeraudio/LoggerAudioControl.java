@@ -73,11 +73,25 @@ public class LoggerAudioControl extends PamControlledUnit implements LoggerNetwo
 	}
 
 	protected void showSettingsMenu(Frame parentFrame) {
-		LoggerAudioSettings newSettings = LoggerAudioDialog.showDialog(parentFrame, loggerAudioSettings);
+		LoggerAudioSettings newSettings = LoggerAudioDialog.showDialog(parentFrame, this, loggerAudioSettings);
 		if (newSettings != null) {
 			loggerAudioSettings = newSettings;
 			loggerAudioProcess.notifyModelChanged(PamController.INITIALIZATION_COMPLETE);
 		}
+	}
+	
+	/**
+	 *  clears the device settings list, but then immediately recreates it from
+	 *  the current connections list.  
+	 */	
+	public void clearDeviceSettings() {
+		loggerAudioSettings.clearDevices();
+		Set<String> keys = loggerAudioProcess.getPlatformNames();
+		for (String aKey : keys) {
+			loggerAudioSettings.getStreamSettings(aKey);
+			newPlatform(loggerAudioProcess.getPlatformAudio(aKey));
+		}
+		
 	}
 
 	@Override

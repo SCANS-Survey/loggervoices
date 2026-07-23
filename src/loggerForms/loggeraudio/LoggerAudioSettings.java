@@ -28,6 +28,11 @@ public class LoggerAudioSettings implements Cloneable, Serializable {
 	public boolean outputSubFolders = true;
 	
 	public PlatformSettings getStreamSettings(String senderName) {
+		if (senderName == null) {
+			return null;
+		}
+
+		senderName = senderName.strip();
 		PlatformSettings ss = platformAudioSettings.get(senderName);
 		if (ss == null) {
 			ss = new PlatformSettings(senderName);
@@ -67,6 +72,11 @@ public class LoggerAudioSettings implements Cloneable, Serializable {
 	 */
 	public Set<String> getPlatformNames() {
 		return platformAudioSettings.keySet();
+	}
+
+	public void clearDevices() {
+		platformAudioSettings.clear();
+		
 	}
 
 }
