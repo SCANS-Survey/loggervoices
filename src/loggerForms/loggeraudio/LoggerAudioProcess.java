@@ -52,7 +52,7 @@ public class LoggerAudioProcess extends PamProcess {
 
 	public static final int appSampleRate = 8000;
 
-	static private final String listenTopic = "AudioData/#";
+	static private final String listenTopic = "Logger/AudioData/#";
 
 	private Map<String, PlatformAudio> platformAudios;
 
