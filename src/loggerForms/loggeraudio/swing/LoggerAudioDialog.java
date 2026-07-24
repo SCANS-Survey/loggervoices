@@ -37,7 +37,6 @@ public class LoggerAudioDialog extends PamDialog {
 	private JTextField bufferSeconds;
 	private JTextField recordSeconds;
 	
-	private JButton clearButton;
 	private LoggerAudioControl loggerAudioControl;
 	
 	private LoggerAudioDialog(Window parentFrame, LoggerAudioControl loggerAudioControl) {
@@ -46,12 +45,10 @@ public class LoggerAudioDialog extends PamDialog {
 		cardList = new JComboBox<>();
 		cardList.setToolTipText("Sound card for audio output");
 		outputFolder = new SelectFolder("Output folder", 40, true);
-		clearButton = new JButton("Clear devices list");
 		bufferSeconds = new JTextField(3);
 		recordSeconds = new JTextField(3);
 		bufferSeconds.setToolTipText("Time to record before recording is initialised");
 		recordSeconds.setToolTipText("Time to record after recording is initialised");
-		clearButton.setToolTipText("Clear all current device names from memory");
 		
 		JPanel mainPanel = new JPanel();
 		mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
@@ -81,27 +78,12 @@ public class LoggerAudioDialog extends PamDialog {
 		dataPanel.add(recordSeconds, c);
 		c.gridx++;
 		dataPanel.add(new JLabel(" seconds ", JLabel.LEFT), c);
-		c.gridx = 0;
-		c.gridy++;
-		dataPanel.add(clearButton, c);
 		
 		fillCardList();
-		
-		clearButton.addActionListener(new ActionListener() {
-			
-			@Override
-			public void actionPerformed(ActionEvent e) {
-				clearDevices();
-			}
-		});
-		
+				
 		setDialogComponent(mainPanel);
 	}
 	
-	protected void clearDevices() {
-		loggerAudioControl.clearDeviceSettings();
-	}
-
 	public static LoggerAudioSettings showDialog(Window parentFrame, LoggerAudioControl loggeraudioControl, LoggerAudioSettings audioSettings) {
 		if (singleInstance == null || singleInstance.getParent() != parentFrame) {
 			singleInstance = new LoggerAudioDialog(parentFrame, loggeraudioControl);

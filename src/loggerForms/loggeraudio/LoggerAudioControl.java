@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Set;
 
+import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 
 import PamController.PamControlledUnit;
@@ -16,6 +17,7 @@ import PamController.PamController;
 import PamController.PamSettingManager;
 import PamController.PamSettings;
 import PamView.PamSidePanel;
+import PamView.dialog.warn.WarnOnce;
 import loggerForms.actions.ActionOwner;
 import loggerForms.actions.LoggerActions;
 import loggerForms.loggeraudio.swing.AudioDisplayProvider;
@@ -61,15 +63,27 @@ public class LoggerAudioControl extends PamControlledUnit implements LoggerNetwo
 
 	@Override
 	public JMenuItem createDetectionMenu(Frame parentFrame) {
-		JMenuItem menuItem = new JMenuItem(getUnitName() + " settings ...");
+		JMenu menu = new JMenu(getUnitName());
+		JMenuItem menuItem = new JMenuItem("Settings ...");
+		menuItem.setToolTipText("Configure sound output, storage folder, recording durations, etc.");
 		menuItem.addActionListener(new ActionListener() {
-			
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				showSettingsMenu(parentFrame);
 			}
 		});
-		return menuItem;
+		menu.add(menuItem);
+		menuItem = new JMenuItem("Clear platform list ...");
+		menuItem.setToolTipText("Clear current platform list from memry (it will automatically recreate)");
+		menuItem.addActionListener(new ActionListener() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				clearDeviceSettings(true);
+			}
+		});
+		menu.add(menuItem);
+		
+		return menu;
 	}
 
 	protected void showSettingsMenu(Frame parentFrame) {
@@ -84,14 +98,22 @@ public class LoggerAudioControl extends PamControlledUnit implements LoggerNetwo
 	 *  clears the device settings list, but then immediately recreates it from
 	 *  the current connections list.  
 	 */	
-	public void clearDeviceSettings() {
+	public void clearDeviceSettings(boolean ask) {
+		if (ask) {
+			int ans = WarnOnce.showWarning(this.getGuiFrame(), "Clear device list", 
+					"Are you sure you want to clear the current device list ?", WarnOnce.OK_CANCEL_OPTION);
+			if (ans == WarnOnce.CANCEL_OPTION) {
+				return;
+			}
+		}
+		
 		loggerAudioSettings.clearDevices();
 		Set<String> keys = loggerAudioProcess.getPlatformNames();
 		for (String aKey : keys) {
 			loggerAudioSettings.getStreamSettings(aKey);
 			newPlatform(loggerAudioProcess.getPlatformAudio(aKey));
 		}
-		
+		newPlatform(null);
 	}
 
 	@Override
