@@ -15,8 +15,7 @@ public class LoggerAudioPlugin implements PamPluginInterface {
 
 	@Override
 	public String getHelpSetName() {
-		// TODO Auto-generated method stub
-		return null;
+		return "loggerForms/loggeraudio/help/LoggerVoices.hs";
 	}
 
 	@Override
