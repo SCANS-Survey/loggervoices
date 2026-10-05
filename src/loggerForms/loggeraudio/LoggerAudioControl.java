@@ -211,7 +211,7 @@ public class LoggerAudioControl extends PamControlledUnit implements LoggerNetwo
 			return;
 		}
 		String data = recording ? Integer.valueOf(remaining).toString() : "-1";
-		netMan.sendData("", "LoggerRecording/"+plat, data.getBytes());
+		netMan.sendData("Logger", "LoggerRecording/"+plat, data.getBytes());
 	}
 
 	@Override

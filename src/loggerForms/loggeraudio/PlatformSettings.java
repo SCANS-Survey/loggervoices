@@ -14,7 +14,7 @@ public class PlatformSettings implements Serializable {
 	public boolean mute;
 	
 	/**
-	 * output stream mixer channel
+	 * output stream mixer channel map (0, 1, or 2 for no output, left or right). 
 	 */
 	public int outputChannel = 0;
 	
@@ -25,7 +25,8 @@ public class PlatformSettings implements Serializable {
 
 	public PlatformSettings(String senderName) {
 		this.platform = senderName;
-		outputChannel = platform.startsWith("P") ? 0 : 1;
+		// go for bitmap of channels so that they can be output on both if we want to 
+		outputChannel = platform.startsWith("P") ? 1 : 2;
 	}
 	
 }

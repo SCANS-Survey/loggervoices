@@ -27,6 +27,7 @@ import javax.sound.sampled.Mixer.Info;
 import PamController.PamController;
 import PamDetection.RawDataUnit;
 import PamUtils.PamCalendar;
+import PamUtils.PamUtils;
 import PamguardMVC.PamProcess;
 import PamguardMVC.PamRawDataBlock;
 import loggerForms.loggeraudio.logging.LoggerAudioDataBlock;
@@ -68,7 +69,7 @@ public class LoggerAudioProcess extends PamProcess {
 	private Mixer currentMixer;
 
 	private Timer queueTimer; 
-	
+
 	private LoggerAudioDataBlock audioDataBlock;
 
 	public LoggerAudioProcess(LoggerAudioControl loggerAudioControl) {
@@ -78,7 +79,7 @@ public class LoggerAudioProcess extends PamProcess {
 		audioDataBlock = new LoggerAudioDataBlock(this);
 		audioDataBlock.SetLogging(new LoggerAudioLogging(audioDataBlock));
 		addOutputDataBlock(audioDataBlock);
-		
+
 		queueTimer = new Timer(50, new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -171,7 +172,7 @@ public class LoggerAudioProcess extends PamProcess {
 		}
 		return p;
 	}
-	
+
 	/**
 	 * Get platform audio. Don't create, so return null if it's not there. 
 	 * @param key
@@ -204,7 +205,7 @@ public class LoggerAudioProcess extends PamProcess {
 	private long lastOut = 0;
 
 	private long startTime;
-	
+
 	/**
 	 * Network callback. repacks the data as double and dumps it into a queue for each platform. 
 	 * A different thread will read the queues and use the data so that this is never blocked
@@ -250,15 +251,15 @@ public class LoggerAudioProcess extends PamProcess {
 		}
 		RawDataUnit rdu = new RawDataUnit(now, 1, pfa.totalSamples, audio[0].length);
 		rdu.setRawData(audio[0]);
-		
+
 		pfa.addAudioData(rdu);
 		pfa.totalSamples += audio[0].length;
 		// what's in those first five bytes ? [0 8 -2 0 5]
-//		if (now - lastOut > 1000) {
-//			System.out.printf("%d(%d) bytes %d-%d received from %s - tot samples %d max level is %5.4f\n", 
-//					audioBytes.length, message.getData().length, audioBytes[0], audioBytes[1], sender, pfa.totalSamples, max);
-//			lastOut = now;
-//		}
+		//		if (now - lastOut > 1000) {
+		//			System.out.printf("%d(%d) bytes %d-%d received from %s - tot samples %d max level is %5.4f\n", 
+		//					audioBytes.length, message.getData().length, audioBytes[0], audioBytes[1], sender, pfa.totalSamples, max);
+		//			lastOut = now;
+		//		}
 
 
 	}
@@ -288,11 +289,11 @@ public class LoggerAudioProcess extends PamProcess {
 			try {
 				threads[i].join();
 			} catch (InterruptedException e) {
-//				e.printStackTrace();
+				//				e.printStackTrace();
 			}
 		}
 	}
-	
+
 
 	/**
 	 * Empties network data que for each platform. Data are put into 
@@ -308,7 +309,7 @@ public class LoggerAudioProcess extends PamProcess {
 		rawOutDataBlock.setNaturalLifetime(loggerAudioControl.getLoggerAudioSettings().bufferSeconds);
 		long now = System.currentTimeMillis();
 		PlatformSettings platSettings = loggerAudioControl.getLoggerAudioSettings().getStreamSettings(pfa.getPlatform());
-		
+
 		while ((rdu = pfa.getUnit()) != null) {
 			// amplify the data if necessary
 			int gain = platSettings.gainDB;
@@ -323,7 +324,7 @@ public class LoggerAudioProcess extends PamProcess {
 			for (int i = 0; i < data.length; i++) {
 				max = Math.max(max, Math.abs(data[i]));
 			}
-			
+
 			pfa.storeDataUnit(rdu);
 			pfa.setLevel(max);
 
@@ -346,7 +347,7 @@ public class LoggerAudioProcess extends PamProcess {
 					System.out.printf("Line buffer size chan %d is %d, avail %d, write took %d millis\n", platSettings.outputChannel, bs, aa, toc-tic);
 					//				System.out.printf("%d(%d) bytes %d-%d received from %s - tot samples %d max level is %5.4f\n", 
 					//						audioBytes.length, message.getData().length, audioBytes[0], audioBytes[1], sender, pfa.totalSamples, max);
-//					lastOut = now;
+					//					lastOut = now;
 				}
 			}
 			// and clear up old data. Since PAMGuard probably isn't running the clearup won't get called, so do it here. 
@@ -358,17 +359,20 @@ public class LoggerAudioProcess extends PamProcess {
 	}
 
 	/**
-	 * Interleave data with zeros so that it can be sent to a single channel 
+	 * Interleave data with zeros so that it can be sent to any channel combination 
 	 * of a stereo output line. 
 	 * @param data
-	 * @param offset
+	 * @param channelMap = 0,1,2,3 depending on which channels selected. 
 	 * @return
 	 */
-	private double[] interleaveAudio(double[] data, int offset) {
+	private double[] interleaveAudio(double[] data, int channelMap) {
 		int n = data.length;
 		double[] out = new double[data.length * 2];
-		for (int i = 0, j = offset; i < data.length; i++, j += 2) {
-			out[j] = data[i];
+		int[] chan = PamUtils.getChannelArray(channelMap);
+		for (int ch = 0; ch < chan.length; ch++) {
+			for (int i = 0, j = chan[ch]; i < data.length; i++, j += 2) {
+				out[j] = data[i];
+			}
 		}
 		return out;
 	}
@@ -415,9 +419,9 @@ public class LoggerAudioProcess extends PamProcess {
 			PlatformAudio pfa = platformAudios.get(key);
 			pfa.stopRecording();
 		}
-		
+
 	}
-	
+
 	/**
 	 * Get current platform audio names. 
 	 * @return
