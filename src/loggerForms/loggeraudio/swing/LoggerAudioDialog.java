@@ -35,8 +35,10 @@ public class LoggerAudioDialog extends PamDialog {
 	private static LoggerAudioDialog singleInstance;
 	private LoggerAudioSettings audioSettings;
 	
-	private JComboBox<String> cardList;
-	private ArrayList<Info> mixers;
+	private JComboBox<String> outputCards;
+	private ArrayList<Info> outputMixers;
+	private JComboBox<String> inputCards;
+	private ArrayList<Info> inputMixers;
 	
 	private SelectFolder outputFolder;
 	
@@ -51,11 +53,15 @@ public class LoggerAudioDialog extends PamDialog {
 	
 	private JCheckBox[][] platformChannels;
 	
+	private JTextField[] talkGroup;
+	
 	private LoggerAudioDialog(Window parentFrame, LoggerAudioControl loggerAudioControl) {
 		super(parentFrame, "Logger app audio", false);
 		this.loggerAudioControl = loggerAudioControl;
-		cardList = new JComboBox<>();
-		cardList.setToolTipText("Sound card for audio output");
+		outputCards = new JComboBox<>();
+		outputCards.setToolTipText("Sound card for audio output");
+		inputCards = new JComboBox<String>();
+		inputCards.setToolTipText("Device to capture Data recorder voice");
 		outputFolder = new SelectFolder("Output folder", 30, true);
 		bufferSeconds = new JTextField(3);
 		recordSeconds = new JTextField(3);
@@ -65,11 +71,23 @@ public class LoggerAudioDialog extends PamDialog {
 		
 		JPanel mainPanel = new JPanel();
 		mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
-		JPanel cardPanel = new JPanel(new BorderLayout());
-		mainPanel.add(cardPanel);
-		cardPanel.setBorder(new TitledBorder("Audio Output device"));
-		cardPanel.add(BorderLayout.NORTH, cardList);
-		cardPanel.add(BorderLayout.CENTER, new PamAlignmentPanel(channelPanel, BorderLayout.WEST));
+		JPanel cardPanel = new JPanel();
+		cardPanel.setLayout(new GridBagLayout());
+//		cardPanel.setLayout(new BoxLayout(cardPanel, BoxLayout.Y_AXIS));
+		GridBagConstraints c = new PamGridBagContraints();
+		c.fill = GridBagConstraints.HORIZONTAL;
+		cardPanel.setBorder(new TitledBorder("Audio devices"));
+		cardPanel.add(new JLabel("Output device (to hear observers)", JLabel.LEFT), c);
+		c.gridy++;
+		cardPanel.add(outputCards, c);
+		c.gridy++;
+		cardPanel.add(new JLabel("Input device (to talk to observers)", JLabel.LEFT), c);
+		c.gridy++;
+		cardPanel.add(inputCards, c);
+		mainPanel.add(new PamAlignmentPanel(cardPanel, BorderLayout.WEST, true));
+		
+		channelPanel.setBorder(new TitledBorder("Channels and talkback"));
+		mainPanel.add(new PamAlignmentPanel(channelPanel, BorderLayout.WEST, true));
 		
 		JPanel pp = new JPanel(new BorderLayout());
 		pp.add(outputFolder.getFolderPanel(), BorderLayout.CENTER);
@@ -79,7 +97,7 @@ public class LoggerAudioDialog extends PamDialog {
 		JPanel dataPanel = new JPanel(new GridBagLayout());
 		mainPanel.add(dataPanel);
 		dataPanel.setBorder(new TitledBorder("Data options"));
-		GridBagConstraints c = new PamGridBagContraints();
+		c = new PamGridBagContraints();
 		dataPanel.add(new JLabel("Buffer length ", JLabel.RIGHT), c);
 		c.gridx++;
 		dataPanel.add(bufferSeconds, c);
@@ -108,22 +126,39 @@ public class LoggerAudioDialog extends PamDialog {
 	}
 	
 	private void fillCardList() {
-		cardList.removeAllItems();
-		mixers = SoundCardSystem.getOutputMixerList();
-		for (int i = 0; i < mixers.size(); i++) {
-			cardList.addItem(mixers.get(i).getName());
+		outputCards.removeAllItems();
+		outputMixers = SoundCardSystem.getOutputMixerList();
+		for (int i = 0; i < outputMixers.size(); i++) {
+			outputCards.addItem(outputMixers.get(i).getName());
+		}
+		inputCards.removeAllItems();
+		inputMixers = SoundCardSystem.getInputMixerList();
+		inputCards.addItem(LoggerAudioSettings.NOTALK);
+		for (int i = 0; i < inputMixers.size(); i++) {
+			inputCards.addItem(inputMixers.get(i).getName());
 		}
 	}
 	
 	private void setParams(LoggerAudioSettings audioSettings) {
-		this.audioSettings =audioSettings;
-		Info currMix = audioSettings.findMixer();
-		for (int i = 0; i < mixers.size(); i++) {
-			if (mixers.get(i).getName().equals(currMix.getName())) {
-				cardList.setSelectedIndex(i);
+		this.audioSettings = audioSettings;
+		Info currMix = audioSettings.findOutputMixer();
+		for (int i = 0; i < outputMixers.size(); i++) {
+			if (outputMixers.get(i).getName().equals(currMix.getName())) {
+				outputCards.setSelectedIndex(i);
 				break;
 			}
 		}
+		Info ipMix = audioSettings.findInputMixer();
+		if (LoggerAudioSettings.NOTALK.equals(audioSettings.inputDeviceName)) {
+			inputCards.setSelectedIndex(0);
+		}
+		else for (int i = 0; i < inputMixers.size(); i++) {
+			if (inputMixers.get(i).getName().equals(ipMix.getName())) {
+				inputCards.setSelectedIndex(i+1); // add one to allow for notalk. 
+				break;
+			}
+		}
+		
 		outputFolder.setFolderName(audioSettings.outputFolder);
 		outputFolder.setIncludeSubFolders(audioSettings.outputSubFolders);
 		
@@ -134,10 +169,12 @@ public class LoggerAudioDialog extends PamDialog {
 	}
 
 	private void createPlatformList() {
+		String[] channelNames = {"Left", "Right"};
 		Set<String> platforms = audioSettings.getPlatformNames();
 		int i = 0;
 		platformNames = new JLabel[platforms.size()];
 		platformChannels = new JCheckBox[platforms.size()][2];
+		talkGroup = new JTextField[platforms.size()];
 		channelPanel.removeAll();
 		channelPanel.setLayout(new GridBagLayout());
 		GridBagConstraints c = new PamGridBagContraints();
@@ -151,6 +188,7 @@ public class LoggerAudioDialog extends PamDialog {
 		c.gridx++;
 		channelPanel.add(new JLabel(" R ", JLabel.CENTER), c);
 		c.gridx++;
+		channelPanel.add(new JLabel(" Talk group", JLabel.LEFT), c);
 		for (String platform : platforms) {
 			PlatformSettings platSettings = audioSettings.getStreamSettings(platform);
 			c.gridx = 0;
@@ -160,7 +198,12 @@ public class LoggerAudioDialog extends PamDialog {
 				c.gridx++;
 				channelPanel.add(platformChannels[i][ch] = new JCheckBox(), c);
 				platformChannels[i][ch].setSelected((platSettings.outputChannel & 1<<ch) != 0);
+				platformChannels[i][ch].setToolTipText(String.format("Play through %s speaker / headphone", channelNames[ch]));
 			}
+			c.gridx++;
+			channelPanel.add(talkGroup[i] = new JTextField(6), c);
+			talkGroup[i].setText(platSettings.talkGroup);
+			talkGroup[i].setToolTipText("Group for talking back to observers");
 			i++;
 		}
 		pack();
@@ -168,11 +211,16 @@ public class LoggerAudioDialog extends PamDialog {
 
 	@Override
 	public boolean getParams() {
-		int ind = cardList.getSelectedIndex();
+		int ind = outputCards.getSelectedIndex();
 		if (ind < 0) {
 			return showWarning("No output sound device selected");
 		}
-		audioSettings.outputDeviceName = mixers.get(ind).getName();
+		audioSettings.outputDeviceName = outputMixers.get(ind).getName();
+		ind = inputCards.getSelectedIndex();
+		if (ind < 0) {
+			return showWarning("No input sound device selected");
+		}
+		audioSettings.inputDeviceName = (String) inputCards.getSelectedItem();
 		audioSettings.outputFolder = outputFolder.getFolderName(true);
 		audioSettings.outputSubFolders = outputFolder.isIncludeSubFolders();
 		try {
@@ -194,6 +242,7 @@ public class LoggerAudioDialog extends PamDialog {
 				}
 			}
 			platSettings.outputChannel = sel;
+			platSettings.talkGroup = talkGroup[i].getText();
 		}
 		return true;
 	}

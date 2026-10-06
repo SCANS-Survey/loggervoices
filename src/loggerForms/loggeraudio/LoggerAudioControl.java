@@ -91,6 +91,7 @@ public class LoggerAudioControl extends PamControlledUnit implements LoggerNetwo
 		if (newSettings != null) {
 			loggerAudioSettings = newSettings;
 			loggerAudioProcess.notifyModelChanged(PamController.INITIALIZATION_COMPLETE);
+			this.configurationUpdate();
 		}
 	}
 	
@@ -198,6 +199,19 @@ public class LoggerAudioControl extends PamControlledUnit implements LoggerNetwo
 		}
 	}
 
+	@Override
+	public void drRecordLevel(double level) {
+		for (LoggerAudioObserver obs : observers) {
+			obs.drRecordLevel(level);
+		}
+		
+	}
+
+	public void configurationUpdate() {
+		for (LoggerAudioObserver obs : observers) {
+			obs.configurationUpdate();
+		}
+	}
 	/**
 	 * Called when a channel modifies it's recording state. 
 	 * @param platformAudio audio handler. 

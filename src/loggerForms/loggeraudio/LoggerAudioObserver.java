@@ -10,4 +10,12 @@ public interface LoggerAudioObserver {
 	
 	public void platformUpdate(PlatformAudio platformAudio);
 	
+	public void configurationUpdate();
+	
+	/**
+	 * broadcast levels from DR voice input
+	 * @param level
+	 */
+	public void drRecordLevel(double level);
+	
 }

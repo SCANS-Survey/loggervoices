@@ -59,7 +59,7 @@ public class PlatformAudio {
 		this.loggerAudioProcess = loggerAudioProcess;
 		this.platform = platform;
 		audioQueue = new LinkedList<>();
-		rawOutDataBlock = new LoggerRawAudioDataBlock(platform, loggerAudioProcess, 1, loggerAudioProcess.appSampleRate);
+		rawOutDataBlock = new LoggerRawAudioDataBlock(platform, loggerAudioProcess, 1, LoggerAudioProcess.appSampleRate);
 		loggerAudioProcess.addOutputDataBlock(rawOutDataBlock);
 		makeInitials();
 		fileEndTimer = new Timer(1000, new ActionListener() {

@@ -19,6 +19,11 @@ public class PlatformSettings implements Serializable {
 	public int outputChannel = 0;
 	
 	/**
+	 * Group for talkback, to help control who DR is talking back to. 
+	 */
+	public String talkGroup;
+	
+	/**
 	 * Gain in decibels
 	 */
 	public int gainDB = 0;

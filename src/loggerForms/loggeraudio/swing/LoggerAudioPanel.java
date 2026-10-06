@@ -6,7 +6,9 @@ import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Graphics;
+import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
+import java.awt.Insets;
 import java.awt.Point;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -15,6 +17,7 @@ import java.awt.event.MouseEvent;
 import java.util.Set;
 
 import javax.swing.BoxLayout;
+import javax.swing.JCheckBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
@@ -28,6 +31,8 @@ import javax.swing.border.TitledBorder;
 
 import PamView.PamSymbol;
 import PamView.PamSymbolType;
+import PamView.dialog.PamGridBagContraints;
+import PamView.panel.PamAlignmentPanel;
 import PamView.panel.PamPanel;
 import loggerForms.loggeraudio.LoggerAudioControl;
 import loggerForms.loggeraudio.LoggerAudioObserver;
@@ -43,12 +48,16 @@ public class LoggerAudioPanel implements LoggerAudioObserver {
 	
 	public enum PANELSIZE {TINY, BIG};
 
-	private JPanel mainPanel, channelPanelContainer;
+	private JPanel mainPanel, channelPanelContainer, talkBackPanel;
 
 	private LoggerAudioControl loggerAudioControl;
 	private LoggerAudioProcess loggerAudioProcess;
 
 	private PANELSIZE panelSize;
+	
+	private JCheckBox[] talkGroupBoxes;
+	
+	private JProgressBar drVoiceLevel;
 	
 	public LoggerAudioPanel(LoggerAudioControl loggerAudioControl, PANELSIZE size) {
 		this.loggerAudioControl = loggerAudioControl;
@@ -58,6 +67,12 @@ public class LoggerAudioPanel implements LoggerAudioObserver {
 		channelPanelContainer = new PamPanel();
 		channelPanelContainer.setLayout(new BoxLayout(channelPanelContainer, panelSize == PANELSIZE.BIG ? BoxLayout.X_AXIS : BoxLayout.Y_AXIS));
 		mainPanel.add(BorderLayout.CENTER, channelPanelContainer);
+		drVoiceLevel = new JProgressBar(JProgressBar.HORIZONTAL, -80, 0);
+		drVoiceLevel.setStringPainted(true);
+		drVoiceLevel.setToolTipText("Level of DR voice input (not recorded, but sent to observer SCANS APP)");
+		
+		talkBackPanel = new JPanel();
+		mainPanel.add(BorderLayout.SOUTH, new PamAlignmentPanel(talkBackPanel, BorderLayout.WEST, true));
 		
 		createChannelPanels();
 		
@@ -73,6 +88,40 @@ public class LoggerAudioPanel implements LoggerAudioObserver {
 				channelPanelContainer.add(new ChannelPanel(platform));
 			}
 		}
+		// also do the talkback groups at this point. 
+		Set<String> talkGroups = settings.getTalkGroups();
+		talkBackPanel.removeAll();
+		talkBackPanel.setLayout(new GridBagLayout());
+		GridBagConstraints c = new PamGridBagContraints();
+		c.insets = new Insets(0, 0, 0, 0);
+		c.ipady = 0;
+		boolean noTalk = LoggerAudioSettings.NOTALK.equals(settings.inputDeviceName);
+		if (noTalk) {
+			drVoiceLevel.setString(LoggerAudioSettings.NOTALK);
+			drVoiceLevel.setValue(drVoiceLevel.getMinimum());
+		}
+		else {
+			drVoiceLevel.setString("Waiting data");
+		}
+		c.gridwidth = 2;
+		talkBackPanel.add(new JLabel("Talkback groups",  JLabel.LEFT), c);
+		c.gridy++;
+		talkBackPanel.add(drVoiceLevel, c);
+		c.gridy++;
+		c.gridwidth = 1;
+		int i = 0;
+		talkGroupBoxes = new JCheckBox[talkGroups.size()];
+		for (String tg : talkGroups) {
+			talkGroupBoxes[i] = new JCheckBox(tg);
+			talkGroupBoxes[i].setToolTipText("Talk back to members of group " + tg);
+			talkBackPanel.add(talkGroupBoxes[i], c);
+			talkGroupBoxes[i].setSelected(settings.isTalkGroup(tg));
+			talkGroupBoxes[i].addActionListener(new TalkGroupAction(tg, talkGroupBoxes[i]));
+			talkGroupBoxes[i].setEnabled(noTalk == false);
+			c.gridy++;
+			i++;
+		}
+		
 	}
 
 	/**
@@ -92,6 +141,27 @@ public class LoggerAudioPanel implements LoggerAudioObserver {
 			}
 		}
 		return null;
+	}
+	
+	private class TalkGroupAction implements ActionListener {
+		private String groupName;
+		private JCheckBox groupBox;
+		/**
+		 * @param groupName
+		 * @param groupBox
+		 */
+		public TalkGroupAction(String groupName, JCheckBox groupBox) {
+			super();
+			this.groupName = groupName;
+			this.groupBox = groupBox;
+		}
+		
+		@Override
+		public void actionPerformed(ActionEvent e) {
+			LoggerAudioSettings settings = loggerAudioControl.getLoggerAudioSettings();
+			settings.setTalkGroup(groupName, groupBox.isSelected());			
+		}
+		
 	}
 	
 	public JComponent getComponent() {
@@ -290,6 +360,11 @@ public class LoggerAudioPanel implements LoggerAudioObserver {
 
 
 	@Override
+	public void configurationUpdate() {
+		createChannelPanels();
+	}
+
+	@Override
 	public void newPlatform(PlatformAudio platformAudio) {
 		createChannelPanels();
 	}
@@ -306,5 +381,15 @@ public class LoggerAudioPanel implements LoggerAudioObserver {
 				panel.update(platformAudio);
 			}
 		});
+	}
+
+	@Override
+	public void drRecordLevel(double level) {
+		double db = -100;
+		if (level > 0) {
+			db = 20.*Math.log10(level);
+		}
+		drVoiceLevel.setString(String.format("%3.0f dB", db));
+		drVoiceLevel.setValue((int) db);
 	}
 }

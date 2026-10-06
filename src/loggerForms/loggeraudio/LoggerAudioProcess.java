@@ -12,15 +12,23 @@ import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioFormat.Encoding;
 import javax.sound.sampled.LineEvent.Type;
 import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.DataLine;
 import javax.sound.sampled.Line;
 import javax.sound.sampled.LineEvent;
 import javax.sound.sampled.LineListener;
 import javax.sound.sampled.Mixer;
 import javax.sound.sampled.SourceDataLine;
+import javax.sound.sampled.TargetDataLine;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 
 import Acquisition.SoundCardSystem;
+import Filters.ButterworthMethod;
+import Filters.Filter;
+import Filters.FilterBand;
+import Filters.FilterParams;
+import Filters.FilterType;
+import Filters.IIRFilterMethod;
 
 import javax.sound.sampled.Mixer.Info;
 
@@ -30,6 +38,7 @@ import PamUtils.PamCalendar;
 import PamUtils.PamUtils;
 import PamguardMVC.PamProcess;
 import PamguardMVC.PamRawDataBlock;
+import dataPlots.data.DataLineInfo;
 import loggerForms.loggeraudio.logging.LoggerAudioDataBlock;
 import loggerForms.loggeraudio.logging.LoggerAudioLogging;
 import loggerForms.network.LoggerNetworkManager;
@@ -52,25 +61,38 @@ public class LoggerAudioProcess extends PamProcess {
 	private boolean listening = false;
 
 	public static final int appSampleRate = 8000;
+	
+	public static final int appBitDepth = 16;
 
 	static private final String listenTopic = "Logger/AudioData/#";
 
 	private Map<String, PlatformAudio> platformAudios;
 
-	private AudioFormat outputFormat = new AudioFormat(appSampleRate, 16, 2, true, true);
+	private AudioFormat outputFormat = new AudioFormat(appSampleRate, appBitDepth, 2, true, true);
 
 	private ByteConverter inputByteConverter = ByteConverter.createByteConverter(2, false, Encoding.PCM_SIGNED);
 	private ByteConverter outputByteConverter = ByteConverter.createByteConverter(2, true, Encoding.PCM_SIGNED);
+	private ByteConverter drByteConverter;
 
 	private int lineBuffSize;
 
 	private boolean running;
 
-	private Mixer currentMixer;
+	private Mixer inputMixer; // miser for recording DR voice to send to SCANSAPPs
+	private Mixer outputMixer; // mixer for playing input from SCANSAPP
 
 	private Timer queueTimer; 
 
 	private LoggerAudioDataBlock audioDataBlock;
+
+	private TargetDataLine inputDataLine;
+	
+	
+
+	private volatile boolean acquire;
+
+	private Filter drVoiceFilter;
+
 
 	public LoggerAudioProcess(LoggerAudioControl loggerAudioControl) {
 		super(loggerAudioControl, null);
@@ -98,10 +120,199 @@ public class LoggerAudioProcess extends PamProcess {
 		if (changeType == PamController.INITIALIZATION_COMPLETE) {
 			prepareOutput();
 			setupListener();
+			prepareInput();
 		}
 	}
 
 
+	/**
+	 * Prepare input from the logger computer sound card to send out to the SCANSAPP observers. 
+	 */
+	private boolean prepareInput() {
+		closeInput();
+		if (LoggerAudioSettings.NOTALK.equals(loggerAudioControl.getLoggerAudioSettings().inputDeviceName)) {
+			System.out.println("No voice input from data recorder");
+			return false;
+		}
+		
+		// prepare a filter for the data - options to follow
+		FilterParams fp = new FilterParams(FilterType.BUTTERWORTH, FilterBand.HIGHPASS, 200, 200, 2);
+		IIRFilterMethod filterMethod = new ButterworthMethod(appSampleRate, fp);
+		drVoiceFilter = filterMethod.createFilter(0);
+		
+		// see https://docs.oracle.com/javase/tutorial/sound/capturing.html
+		try {
+			Mixer.Info inputMixerInfo = loggerAudioControl.getLoggerAudioSettings().findInputMixer();
+			if (inputMixerInfo == null) {
+				inputMixerInfo = SoundCardSystem.getInputMixerList().get(0);
+			}
+			inputMixer = AudioSystem.getMixer(inputMixerInfo);
+			AudioFormat format = new AudioFormat(appSampleRate, appBitDepth, 1, true, false);
+			drByteConverter = ByteConverter.createByteConverter(format);
+			if (inputMixer.getTargetLineInfo().length == 0) {
+				return false;
+			}
+			inputDataLine = (TargetDataLine) inputMixer.getLine(inputMixer.getTargetLineInfo()[0]);
+			inputDataLine.open(format);
+			AudioCaptureThread audioCaptureThread = new AudioCaptureThread(inputDataLine, format);
+			Thread t = new Thread(audioCaptureThread);
+			t.start();
+			
+		}
+		catch (Exception e) {
+			e.printStackTrace();
+			return false;
+		}
+		
+		return inputMixer != null;
+	}
+	
+	private void closeInput() {
+		if (inputDataLine != null) {
+			acquire = false;
+			inputDataLine.stop();
+			inputDataLine.close();
+			inputDataLine = null;
+		}
+		if (inputMixer != null) {
+			inputMixer.close();
+			inputMixer = null;
+		}
+	}
+	
+	private class AudioCaptureThread implements Runnable {
+		private TargetDataLine inputDataLine;
+		private AudioFormat format;
+		/**
+		 * @param inputDataLine
+		 * @param format
+		 */
+		public AudioCaptureThread(TargetDataLine inputDataLine, AudioFormat format) {
+			super();
+			this.inputDataLine = inputDataLine;
+			this.format = format;
+		}
+		@Override
+		public void run() {
+			acquire = true;
+			int buffSize = (int) (format.getFrameSize()*format.getFrameRate()/10);
+			System.out.println("Starting voice acquire: " + format.toString());
+			inputDataLine.start();
+			long startTime = System.currentTimeMillis();
+			long totalSamples = 0;
+			while(acquire) {
+				try {
+					if (inputDataLine.isOpen() == false) {
+						break;
+					}
+					if (inputDataLine.available() < buffSize) {
+						Thread.sleep(5);
+						continue;
+					}
+					byte[] data = new byte[buffSize];
+					int bytesRead = inputDataLine.read(data, 0, buffSize);
+					if (bytesRead < buffSize) {
+//						System.out.printf("Voice acquired %d of %d bytes\n", bytesRead, buffSize);
+						acquire = false;
+						break;
+					}
+					getLevels(data, bytesRead);
+					shareVoiceBuffer(data, bytesRead);
+					totalSamples += bytesRead/format.getFrameSize();
+//					System.out.printf(".");
+				}
+				catch (Exception e) {
+					acquire = false;
+					e.printStackTrace();
+				}
+			}
+			long stopTime = System.currentTimeMillis();
+			System.out.printf("Leave voice acquire, %d samples in %d millis = rate %3.2fkHz\n", 
+					totalSamples, stopTime-startTime, (double) totalSamples / (double) (stopTime-startTime));
+		}
+		
+	}
+
+	/**
+	 * Send voice data to app connections via MQTT. Who gets it depends 
+	 * on which groups are enabled and which remote app is in each group. 
+	 * @param data
+	 * @param bytesRead
+	 */
+	private void shareVoiceBuffer(byte[] data, int bytesRead) {
+		LoggerAudioSettings settings = loggerAudioControl.getLoggerAudioSettings();
+		
+		data = filterVoiceBuffer(data, bytesRead);
+		
+		Set<String> platforms = settings.getPlatformNames();
+		Set<String> groups = settings.getTalkGroups();
+		for (String platform : platforms) {
+			PlatformSettings platSet = settings.getStreamSettings(platform);
+			String platGroup = platSet.talkGroup;
+			if (settings.isTalkGroup(platGroup)) {
+				shareVoiceBuffer(platform, data, bytesRead);
+			}
+		}
+	}
+
+	// run a high pass filter on the data 
+	private byte[] filterVoiceBuffer(byte[] data, int bytesRead) {
+		int nSamp = bytesRead/2;
+		double[][] audio = new double[1][nSamp];
+		drByteConverter.bytesToDouble(data, audio, bytesRead);
+		drVoiceFilter.runFilter(audio[0]);
+		drByteConverter.doubleToBytes(audio, data, nSamp);
+		return data;
+	}
+
+
+	/**
+	 * Get levels from the input voice. 
+	 * @param data
+	 * @param bytesRead
+	 */
+	public void getLevels(byte[] data, int bytesRead) {
+		int nSamp = bytesRead/2;
+		double[][] audio = new double[1][nSamp];
+		drByteConverter.bytesToDouble(data, audio, bytesRead);
+		double max = 0;
+		double[] chan = audio[0];
+		for (int i = 0; i < chan.length; i++) {
+			max = Math.max(max, Math.abs(chan[i]));
+		}
+		loggerAudioControl.drRecordLevel(max);
+	}
+
+
+	/**
+	 * Share voice buffer to a platform via MQTT. If we get here, we
+	 * already know that this platform group is enabled. 
+	 * @param platform name of platform
+	 * @param data data
+	 * @param bytesRead data length in bytes
+	 */
+	private boolean shareVoiceBuffer(String platform, byte[] data, int dataBytes) {
+		/*
+		 *   need to share data very specifically to the one platform. So data topic must include
+		 *   the platform name, not the group name. This may generate slightly more traffic on the local
+		 *   connection to the MQTT server, but it's still the same traffic to each Android device.  
+		 */
+		LoggerNetworkManager netMan = LoggerNetworkSystem.getManager();
+		if (netMan == null) {
+			return false;
+		}
+		if (dataBytes < data.length) {
+			data = Arrays.copyOf(data, dataBytes);
+		}
+		String topic = "DRVoice/"+platform;
+		return netMan.sendData(platform, topic, data);
+	}
+
+
+	/**
+	 * Setup output device for audio playback of what's coming in from the logger observerser
+	 * @return
+	 */
 	private boolean prepareOutput() {
 
 		closeOutput();
@@ -110,8 +321,8 @@ public class LoggerAudioProcess extends PamProcess {
 		if (mixers == null || mixers.size() == 0) {
 			return false;
 		}
-		Info mixer = loggerAudioControl.getLoggerAudioSettings().findMixer();
-		currentMixer = AudioSystem.getMixer(mixer);
+		Info mixer = loggerAudioControl.getLoggerAudioSettings().findOutputMixer();
+		outputMixer = AudioSystem.getMixer(mixer);
 
 		return true;
 	}
@@ -125,16 +336,16 @@ public class LoggerAudioProcess extends PamProcess {
 				pfa.clearLine();
 			}
 
-			Line[] sls = currentMixer.getSourceLines();
+			Line[] sls = outputMixer.getSourceLines();
 			if (sls != null) {
 				for (int i = 0; i < sls.length; i++) {
 					//					sls[i].
 				}
 			}
-			if (currentMixer != null) {
+			if (outputMixer != null) {
 				//				currentMixer.
-				currentMixer.close();
-				currentMixer = null;
+				outputMixer.close();
+				outputMixer = null;
 			}
 		}
 		catch (Exception e) {}
@@ -183,6 +394,9 @@ public class LoggerAudioProcess extends PamProcess {
 	}
 
 
+	/**
+	 * Setup the MQTT channels to receive data from the observers. 
+	 */
 	private void setupListener() {
 		LoggerNetworkManager netManager = LoggerNetworkSystem.getManager();
 		if (netManager != null && listening == false) {
@@ -332,7 +546,7 @@ public class LoggerAudioProcess extends PamProcess {
 			double[][] out = {interleaved};
 			byte[] outBytes = new byte[interleaved.length*2];
 			outputByteConverter.doubleToBytes(out, outBytes, interleaved.length);
-			SourceDataLine dataLine = pfa.getSourceDataLine(currentMixer, outputFormat);
+			SourceDataLine dataLine = pfa.getSourceDataLine(outputMixer, outputFormat);
 			if (dataLine != null) {
 				long tic = System.currentTimeMillis();
 				dataLine.write(outBytes, 0, outBytes.length);
