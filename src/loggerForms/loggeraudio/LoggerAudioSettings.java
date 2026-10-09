@@ -112,6 +112,15 @@ public class LoggerAudioSettings implements Cloneable, Serializable {
 	}
 	
 	/**
+	 * Remove a named device. 
+	 * @param platformName
+	 * @return
+	 */
+	public boolean clearDevice(String platformName) {
+		return (platformAudioSettings.remove(platformName) != null);
+	}
+
+	/**
 	 * Get a list of unique non null talk groups - groups that the DR might talk back to
 	 * @return
 	 */

@@ -17,12 +17,14 @@ import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
+import javax.swing.SwingUtilities;
 import javax.swing.border.TitledBorder;
 
 import Acquisition.SoundCardSystem;
 import PamUtils.SelectFolder;
 import PamView.dialog.PamDialog;
 import PamView.dialog.PamGridBagContraints;
+import PamView.dialog.warn.WarnOnce;
 import PamView.panel.PamAlignmentPanel;
 import loggerForms.loggeraudio.LoggerAudioControl;
 import loggerForms.loggeraudio.LoggerAudioSettings;
@@ -202,12 +204,43 @@ public class LoggerAudioDialog extends PamDialog {
 			}
 			c.gridx++;
 			channelPanel.add(talkGroup[i] = new JTextField(6), c);
+			c.gridx++;
+			JButton removeButton = new JButton("Delete");
+			channelPanel.add(removeButton, c);
 			talkGroup[i].setText(platSettings.talkGroup);
 			talkGroup[i].setToolTipText("Group for talking back to observers");
+			removeButton.setToolTipText("Remove platform " + platform + " from system");
+			removeButton.addActionListener(new RemoveAction(platform));
 			i++;
 		}
 		pack();
 	}
+	
+	private class RemoveAction implements ActionListener {
+
+		private String platformName;
+		
+		/**
+		 * @param platformName
+		 */
+		public RemoveAction(String platformName) {
+			super();
+			this.platformName = platformName;
+		}
+
+		@Override
+		public void actionPerformed(ActionEvent e) {
+			String msg = String.format("Are you sure you want to remove %s from the system\n "
+					+ "Note that if will regenerate if a device with that name sends data", platformName);
+			int ans = WarnOnce.showNamedWarning("RemoveNamedPlatform", LoggerAudioDialog.this, "Remove platform", msg, WarnOnce.OK_CANCEL_OPTION);
+			if (ans == WarnOnce.OK_OPTION) {
+				removePlatform(platformName);
+			}
+			
+		}
+		
+	}
+	
 
 	@Override
 	public boolean getParams() {
@@ -245,6 +278,19 @@ public class LoggerAudioDialog extends PamDialog {
 			platSettings.talkGroup = talkGroup[i].getText();
 		}
 		return true;
+	}
+
+	public void removePlatform(String platformName) {
+		boolean rem = audioSettings.clearDevice(platformName);
+		if (rem) {
+			loggerAudioControl.newPlatform(null);
+			SwingUtilities.invokeLater(new Runnable() {
+				@Override
+				public void run() {
+					createPlatformList();
+				}
+			});
+		}
 	}
 
 	@Override
